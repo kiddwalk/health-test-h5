@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中医体质自测</title>
+    <!-- 添加 LeanCloud SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leancloud-storage/4.15.0/av-min.js"></script>
+    <!-- 原有的样式保持不变 -->
+    <style>
+        /* 之前的所有样式代码保持不变 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .question-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .question-card.active {
+            display: block;
+        }
+        .result-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .option {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .option:hover {
+            background: #e9ecef;
+        }
+        .button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background: #388E3C;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: #4CAF50;
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+        #adminPanel {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+        }
+        .share-button {
+            background: #1976D2;
+            margin-top: 20px;
+        }
+        .share-button:hover {
+            background: #1565C0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>中医体质自测</h1>
+            <p>了解自己的体质类型，获取个性化调理方案</p>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+        </div>
+
+        <div id="questionnaire"></div>
+        <div id="result" class="result-card"></div>
+        <div id="adminPanel"></div>
+    </div>
+
+    <script>
+        // 初始化 LeanCloud
+        AV.init({
+            appId: "你的AppID", // 这里需要替换成你的 AppID
+            appKey: "你的AppKey" // 这里需要替换成你的 AppKey
+        });
+
+        // 原有的题库和体质类型定义保持不变
+        const questions = [
+            {
+                question: "您平时容易感到疲乏吗？",
+                options: ["从不", "很少", "有时", "经常", "总是"]
+            },
+            {
+                question: "您容易感冒吗？",
+                options: ["从不", "很少", "有时", "经常", "总是"]
+            },
+            {
+                question: "您的手脚容易发凉吗？",
+                options: ["从不", "很少", "有时", "经常", "总是"]
+            },
+            {
+                question: "您容易出汗吗？",
+                options: ["从不", "很少", "有时", "经常", "总是"]
+            },
+            {
+                question: "您的睡眠质量如何？",
+                options: ["很好", "较好", "一般", "较差", "很差"]
+            }
+        ];
+
+        const constitutionTypes = {
+            yangDeficiency: {
+                name: "阳虚体质",
+                description: "体质偏寒，手脚冰凉，容易疲劳",
+                solution: "1. 适当运动增加阳气\n2. 注意保暖\n3. 饮食宜温补\n4. 建议食用生姜、桂圆等温性食物"
+            },
+            yinDeficiency: {
+                name: "阴虚体质",
+                description: "易上火，口干，手脚心热",
+                solution: "1. 避免熬夜\n2. 多食用滋阴食物\n3. 保持充足睡眠\n4. 建议食用百合、梨等清凉食物"
+            },
+            balanced: {
+                name: "平和体质",
+                description: "各项指标平衡，抵抗力较好",
+                solution: "1. 保持规律作息\n2. 均衡饮食\n3. 适度运动\n4. 调节好情绪"
+            }
+        };
+
+        let currentQuestion = 0;
+        let answers = [];
+
+        // 保存测试结果到 LeanCloud
+        async function saveResult(result) {
+            const TestResult = AV.Object.extend('TestResult');
+            const testResult = new TestResult();
+            
+            testResult.set('constitutionType', result.name);
+            testResult.set('answers', answers);
+            testResult.set('timestamp', new Date());
+            
+            try {
+                await testResult.save();
+                console.log('结果保存成功');
+            } catch (error) {
+                console.error('保存失败:', error);
+            }
+        }
+
+        // 获取统计数据
+        async function getStats() {
+            const query = new AV.Query('TestResult');
+            const results = await query.find();
+            
+            const stats = {
+                total: results.length,
+                types: {}
+            };
+            
+            results.forEach(result => {
+                const type = result.get('constitutionType');
+                stats.types[type] = (stats.types[type] || 0) + 1;
+            });
+            
+            return stats;
+        }
+
+        // 修改 showResult 函数
+        async function showResult() {
+            const result = analyzeResults();
+            document.getElementById('questionnaire').style.display = 'none';
+            document.getElementById('progressBar').style.display = 'none';
+            
+            // 保存结果
+            await saveResult(result);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h2>测试结果</h2>
+                <h3>${result.name}</h3>
+                <p><strong>体质特点：</strong>${result.description}</p>
+                <h4>调理方案：</h4>
+                <p>${result.solution.replace(/\n/g, '<br>')}</p>
+                <button class="button" onclick="restart()">重新测试</button>
+                <button class="button share-button" onclick="share()">分享给朋友</button>
+            `;
+            
+            // 更新管理面板
+            updateAdminPanel();
+        }
+
+        // 修改 updateAdminPanel 函数
+        async function updateAdminPanel() {
+            const stats = await getStats();
+            const adminPanel = document.getElementById('adminPanel');
+            adminPanel.innerHTML = `
+                <h3>数据统计</h3>
+                <p>总测试人数：${stats.total}</p>
+                ${Object.entries(stats.types).map(([type, count]) => `
+                    <p>${type}：${count} 人 (${((count/stats.total)*100).toFixed(1)}%)</p>
+                `).join('')}
+            `;
+        }
+
+        // 分享功能
+        function share() {
+            if (navigator.share) {
+                navigator.share({
+                    title: '中医体质自测',
+                    text: '快来测试你的体质类型！',
+                    url: window.location.href
+                });
+            } else {
+                alert('复制链接分享给朋友：' + window.location.href);
+            }
+        }
+
+        // 其他原有函数保持不变
+        function initQuestionnaire() {
+            const container = document.getElementById('questionnaire');
+            questions.forEach((q, index) => {
+                const card = document.createElement('div');
+                card.className = `question-card ${index === 0 ? 'active' : ''}`;
+                card.innerHTML = `
+                    <h3>${index + 1}. ${q.question}</h3>
+                    ${q.options.map((opt, i) => `
+                        <button class="option" onclick="selectOption(${i})">${opt}</button>
+                    `).join('')}
+                `;
+                container.appendChild(card);
+            });
+            updateProgress();
+        }
+
+        function selectOption(optionIndex) {
+            answers.push(optionIndex);
+            if (currentQuestion < questions.length - 1) {
+                document.querySelectorAll('.question-card')[currentQuestion].classList.remove('active');
+                currentQuestion++;
+                document.querySelectorAll('.question-card')[currentQuestion].classList.add('active');
+                updateProgress();
+            } else {
+                showResult();
+            }
+        }
+
+        function updateProgress() {
+            const progress = ((currentQuestion) / questions.length) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+        }
+
+        function analyzeResults() {
+            const score = answers.reduce((sum, answer) => sum + answer, 0);
+            if (score <= 7) {
+                return constitutionTypes.balanced;
+            } else if (score <= 14) {
+                return constitutionTypes.yangDeficiency;
+            } else {
+                return constitutionTypes.yinDeficiency;
+            }
+        }
+
+        function restart() {
+            currentQuestion = 0;
+            answers = [];
+            document.getElementById('questionnaire').style.display = 'block';
+            document.getElementById('progressBar').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.querySelectorAll('.question-card').forEach((card, index) => {
+                card.classList.remove('active');
+                if (index === 0) card.classList.add('active');
+            });
+            updateProgress();
+        }
+
+        // 初始化页面
+        initQuestionnaire();
+
+        // 添加管理员入口
+        document.querySelector('.header').addEventListener('dblclick', toggleAdmin);
+        
+        function toggleAdmin() {
+            const adminPanel = document.getElementById('adminPanel');
+            adminPanel.style.display = adminPanel.style.display === 'none' ? 'block' : 'none';
+            if (
