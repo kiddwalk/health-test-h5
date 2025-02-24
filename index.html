@@ -332,3 +332,23 @@
             const adminPanel = document.getElementById('adminPanel');
             adminPanel.style.display = adminPanel.style.display === 'none' ? 'block' : 'none';
             if (
+// 初始化 LeanCloud
+AV.init({
+  appId: "你的appId",
+  appKey: "你的appKey"
+});
+
+// 保存测试结果
+function saveTestResult(result) {
+  const TestResult = AV.Object.extend('TestResult');
+  const testResult = new TestResult();
+  testResult.set('type', result.type);
+  testResult.set('score', result.score);
+  testResult.save()
+    .then(() => {
+      console.log('保存成功');
+    })
+    .catch(error => {
+      console.error('保存失败:', error);
+    });
+}
