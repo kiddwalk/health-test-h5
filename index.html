@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中医体质自测</title>
-    <!-- 添加 LeanCloud SDK -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leancloud-storage/4.15.0/av-min.js"></script>
-    <!-- 原有的样式保持不变 -->
     <style>
-        /* 之前的所有样式代码保持不变 */
         * {
             margin: 0;
             padding: 0;
@@ -101,13 +97,6 @@
             background: white;
             border-radius: 12px;
         }
-        .share-button {
-            background: #1976D2;
-            margin-top: 20px;
-        }
-        .share-button:hover {
-            background: #1565C0;
-        }
     </style>
 </head>
 <body>
@@ -127,14 +116,7 @@
     </div>
 
     <script>
-        console.log('测试页面加载');
-        // 初始化 LeanCloud
-        AV.init({
-            appId: "LLbc44dTx92Yk5f9McYVVa0y-MdYXbMMI", // 这里需要替换成你的 AppID
-            appKey: "utXvQLbWSQIcnB4MIC2nUK1a" // 这里需要替换成你的 AppKey
-        });
-
-        // 原有的题库和体质类型定义保持不变
+        // 测试题库
         const questions = [
             {
                 question: "您平时容易感到疲乏吗？",
@@ -158,6 +140,7 @@
             }
         ];
 
+        // 体质类型及解决方案
         const constitutionTypes = {
             yangDeficiency: {
                 name: "阳虚体质",
@@ -178,94 +161,14 @@
 
         let currentQuestion = 0;
         let answers = [];
+        let totalResponses = 0;
+        let constitutionStats = {
+            yangDeficiency: 0,
+            yinDeficiency: 0,
+            balanced: 0
+        };
 
-        // 保存测试结果到 LeanCloud
-        async function saveResult(result) {
-            const TestResult = AV.Object.extend('TestResult');
-            const testResult = new TestResult();
-            
-            testResult.set('constitutionType', result.name);
-            testResult.set('answers', answers);
-            testResult.set('timestamp', new Date());
-            
-            try {
-                await testResult.save();
-                console.log('结果保存成功');
-            } catch (error) {
-                console.error('保存失败:', error);
-            }
-        }
-
-        // 获取统计数据
-        async function getStats() {
-            const query = new AV.Query('TestResult');
-            const results = await query.find();
-            
-            const stats = {
-                total: results.length,
-                types: {}
-            };
-            
-            results.forEach(result => {
-                const type = result.get('constitutionType');
-                stats.types[type] = (stats.types[type] || 0) + 1;
-            });
-            
-            return stats;
-        }
-
-        // 修改 showResult 函数
-        async function showResult() {
-            const result = analyzeResults();
-            document.getElementById('questionnaire').style.display = 'none';
-            document.getElementById('progressBar').style.display = 'none';
-            
-            // 保存结果
-            await saveResult(result);
-            
-            const resultDiv = document.getElementById('result');
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `
-                <h2>测试结果</h2>
-                <h3>${result.name}</h3>
-                <p><strong>体质特点：</strong>${result.description}</p>
-                <h4>调理方案：</h4>
-                <p>${result.solution.replace(/\n/g, '<br>')}</p>
-                <button class="button" onclick="restart()">重新测试</button>
-                <button class="button share-button" onclick="share()">分享给朋友</button>
-            `;
-            
-            // 更新管理面板
-            updateAdminPanel();
-        }
-
-        // 修改 updateAdminPanel 函数
-        async function updateAdminPanel() {
-            const stats = await getStats();
-            const adminPanel = document.getElementById('adminPanel');
-            adminPanel.innerHTML = `
-                <h3>数据统计</h3>
-                <p>总测试人数：${stats.total}</p>
-                ${Object.entries(stats.types).map(([type, count]) => `
-                    <p>${type}：${count} 人 (${((count/stats.total)*100).toFixed(1)}%)</p>
-                `).join('')}
-            `;
-        }
-
-        // 分享功能
-        function share() {
-            if (navigator.share) {
-                navigator.share({
-                    title: '中医体质自测',
-                    text: '快来测试你的体质类型！',
-                    url: window.location.href
-                });
-            } else {
-                alert('复制链接分享给朋友：' + window.location.href);
-            }
-        }
-
-        // 其他原有函数保持不变
+        // 初始化问卷
         function initQuestionnaire() {
             const container = document.getElementById('questionnaire');
             questions.forEach((q, index) => {
@@ -282,6 +185,7 @@
             updateProgress();
         }
 
+        // 选择选项
         function selectOption(optionIndex) {
             answers.push(optionIndex);
             if (currentQuestion < questions.length - 1) {
@@ -294,11 +198,13 @@
             }
         }
 
+        // 更新进度条
         function updateProgress() {
             const progress = ((currentQuestion) / questions.length) * 100;
             document.getElementById('progressBar').style.width = `${progress}%`;
         }
 
+        // 分析结果
         function analyzeResults() {
             const score = answers.reduce((sum, answer) => sum + answer, 0);
             if (score <= 7) {
@@ -310,6 +216,45 @@
             }
         }
 
+        // 显示结果
+        function showResult() {
+            const result = analyzeResults();
+            document.getElementById('questionnaire').style.display = 'none';
+            document.getElementById('progressBar').style.display = 'none';
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h2>测试结果</h2>
+                <h3>${result.name}</h3>
+                <p><strong>体质特点：</strong>${result.description}</p>
+                <h4>调理方案：</h4>
+                <p>${result.solution.replace(/\n/g, '<br>')}</p>
+                <button class="button" onclick="restart()">重新测试</button>
+            `;
+
+            // 更新统计数据
+            totalResponses++;
+            constitutionStats[Object.keys(constitutionTypes).find(key => 
+                constitutionTypes[key].name === result.name)]++;
+            
+            // 更新管理面板
+            updateAdminPanel();
+        }
+
+        // 更新管理面板
+        function updateAdminPanel() {
+            const adminPanel = document.getElementById('adminPanel');
+            adminPanel.innerHTML = `
+                <h3>数据统计</h3>
+                <p>总测试人数：${totalResponses}</p>
+                <p>平和体质：${constitutionStats.balanced} 人 (${((constitutionStats.balanced/totalResponses)*100).toFixed(1)}%)</p>
+                <p>阳虚体质：${constitutionStats.yangDeficiency} 人 (${((constitutionStats.yangDeficiency/totalResponses)*100).toFixed(1)}%)</p>
+                <p>阴虚体质：${constitutionStats.yinDeficiency} 人 (${((constitutionStats.yinDeficiency/totalResponses)*100).toFixed(1)}%)</p>
+            `;
+        }
+
+        // 重新开始测试
         function restart() {
             currentQuestion = 0;
             answers = [];
@@ -323,33 +268,17 @@
             updateProgress();
         }
 
-        // 初始化页面
-        initQuestionnaire();
-
-        // 添加管理员入口
-        document.querySelector('.header').addEventListener('dblclick', toggleAdmin);
-        
+        // 显示管理员面板
         function toggleAdmin() {
             const adminPanel = document.getElementById('adminPanel');
             adminPanel.style.display = adminPanel.style.display === 'none' ? 'block' : 'none';
-            if (
-// 初始化 LeanCloud
-AV.init({
-  appId: "LLbc44dTx92Yk5f9McYVVa0y-MdYXbMMI",
-  appKey: "utXvQLbWSQIcnB4MIC2nUK1a"
-});
+        }
 
-// 保存测试结果
-function saveTestResult(result) {
-  const TestResult = AV.Object.extend('TestResult');
-  const testResult = new TestResult();
-  testResult.set('type', result.type);
-  testResult.set('score', result.score);
-  testResult.save()
-    .then(() => {
-      console.log('保存成功');
-    })
-    .catch(error => {
-      console.error('保存失败:', error);
-    });
-}
+        // 初始化页面
+        initQuestionnaire();
+
+        // 添加管理员入口（实际项目中应该有proper的授权机制）
+        document.querySelector('.header').addEventListener('dblclick', toggleAdmin);
+    </script>
+</body>
+</html>
